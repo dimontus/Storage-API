@@ -1,0 +1,33 @@
+variables:
+  GIT_STRATEGY: clone
+  PROJECT_NAME: "Api.Storage"
+  CONTAINER_NAME: "storage-service"
+  INITIAL_VERSION: "9.2.3"
+  
+include:
+  - project: 'backend/libraries/ci-template'
+    ref: master
+    file: 'services-template.yml'
+
+  - project: 'backend/libraries/ci-template'
+    ref: master
+    file: 'services-common.yml'
+
+stages:
+  - build
+  - build-lib
+  - test
+  - add-version
+  - publish
+  - deploy
+  - collect-artifacts
+  
+.deploy-common:
+  script: 
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE/$CONTAINER_NAME:$CI_PIPELINE_ID
+    - docker tag $CI_REGISTRY_IMAGE/$CONTAINER_NAME:$CI_PIPELINE_ID $CONTAINER_NAME:$CI_PIPELINE_ID
+    - docker rm -f $CONTAINER_NAME || true 
+    - mkdir -p "/var/secrets/$CONTAINER_NAME"
+    - cp -f -r "$APP_SETTINGS" "/var/secrets/$CONTAINER_NAME/appsettings.json"
+    - docker run -d -p $SERVICE_PORT:80 -v "/var/secrets/$CONTAINER_NAME/appsettings.json":"/app/appsettings.json" -v "/var/$CONTAINER_NAME/files":"$STORAGE_FOLDER" --env StorageSettings__FileSystem__BasePath=$STORAGE_FOLDER --name $CONTAINER_NAME $CI_REGISTRY_IMAGE/$CONTAINER_NAME:$CI_PIPELINE_ID
